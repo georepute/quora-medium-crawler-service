@@ -47,8 +47,30 @@ RUN apt-get update && apt-get install -y \
 RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
     && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
     && apt-get update \
-    && apt-get install -y google-chrome-stable \
+    && apt-get install -y google-chrome-stable unzip \
     && rm -rf /var/lib/apt/lists/*
+
+# Install ChromeDriver (matching Chrome version)
+RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+') \
+    && CHROME_MAJOR=$(echo $CHROME_VERSION | cut -d '.' -f 1) \
+    && echo "Chrome version: $CHROME_VERSION (major: $CHROME_MAJOR)" \
+    && if [ "$CHROME_MAJOR" -ge "115" ]; then \
+         CHROMEDRIVER_URL="https://edgedl.me.goog.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chromedriver-linux64.zip"; \
+       else \
+         CHROMEDRIVER_VERSION=$(wget -qO- "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR}"); \
+         CHROMEDRIVER_URL="https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip"; \
+       fi \
+    && echo "Downloading ChromeDriver from: $CHROMEDRIVER_URL" \
+    && wget -q "$CHROMEDRIVER_URL" -O chromedriver.zip \
+    && unzip chromedriver.zip \
+    && if [ -d "chromedriver-linux64" ]; then \
+         mv chromedriver-linux64/chromedriver /usr/local/bin/; \
+       else \
+         mv chromedriver /usr/local/bin/; \
+       fi \
+    && chmod +x /usr/local/bin/chromedriver \
+    && rm -rf chromedriver.zip chromedriver-linux64 \
+    && chromedriver --version
 
 # Set working directory
 WORKDIR /app
@@ -62,9 +84,9 @@ RUN npm install --production
 # Copy application files
 COPY . .
 
-# Set environment variable for Chrome
+# Set environment variables for Chrome
 ENV CHROME_BIN=/usr/bin/google-chrome-stable
-ENV CHROMEDRIVER_PATH=/app/node_modules/chromedriver/lib/chromedriver/chromedriver
+ENV PATH="/usr/local/bin:${PATH}"
 
 # Expose port
 EXPOSE 3002
