@@ -50,27 +50,25 @@ RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key
     && apt-get install -y google-chrome-stable unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install ChromeDriver (matching Chrome version)
-RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+') \
+# Install ChromeDriver (using latest stable)
+RUN apt-get update && apt-get install -y jq \
+    && CHROME_VERSION=$(google-chrome --version | awk '{print $3}') \
+    && echo "Chrome version: $CHROME_VERSION" \
     && CHROME_MAJOR=$(echo $CHROME_VERSION | cut -d '.' -f 1) \
-    && echo "Chrome version: $CHROME_VERSION (major: $CHROME_MAJOR)" \
-    && if [ "$CHROME_MAJOR" -ge "115" ]; then \
-         CHROMEDRIVER_URL="https://edgedl.me.goog.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chromedriver-linux64.zip"; \
-       else \
-         CHROMEDRIVER_VERSION=$(wget -qO- "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR}"); \
-         CHROMEDRIVER_URL="https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip"; \
-       fi \
-    && echo "Downloading ChromeDriver from: $CHROMEDRIVER_URL" \
-    && wget -q "$CHROMEDRIVER_URL" -O chromedriver.zip \
-    && unzip chromedriver.zip \
-    && if [ -d "chromedriver-linux64" ]; then \
-         mv chromedriver-linux64/chromedriver /usr/local/bin/; \
-       else \
-         mv chromedriver /usr/local/bin/; \
-       fi \
+    && echo "Chrome major version: $CHROME_MAJOR" \
+    # Get matching ChromeDriver version from Chrome for Testing API
+    && CHROMEDRIVER_VERSION=$(wget -qO- "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json" | \
+       jq -r ".channels.Stable.version") \
+    && echo "Using ChromeDriver version: $CHROMEDRIVER_VERSION" \
+    # Download and install ChromeDriver
+    && wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" -O chromedriver.zip \
+    && unzip -q chromedriver.zip \
+    && mv chromedriver-linux64/chromedriver /usr/local/bin/ \
     && chmod +x /usr/local/bin/chromedriver \
     && rm -rf chromedriver.zip chromedriver-linux64 \
-    && chromedriver --version
+    && chromedriver --version \
+    && apt-get remove -y jq \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
