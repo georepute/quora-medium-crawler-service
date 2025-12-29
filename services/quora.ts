@@ -230,11 +230,9 @@ async function createQuoraPost(
         
         // Scroll into view
         composeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        await new Promise(r => setTimeout(r, 500));
         
-        // Focus and click
+        // Focus and click (no await needed in browser context)
         composeElement.focus();
-        await new Promise(r => setTimeout(r, 300));
         composeElement.click();
         
         return true;
