@@ -194,157 +194,82 @@ async function createQuoraPost(
   await service.navigateTo('https://www.quora.com');
   await service.humanDelay(3000, 5000);
 
-  // Step 2: Click "Post" button to open modal
-  console.log("🚀 Step 1: Looking for 'Post' button on homepage...");
+  // Step 2: Click compose/input area to open post modal
+  console.log("🚀 Step 1: Looking for compose area to create post...");
   
-  let postButtonClicked = false;
+  let postModalOpened = false;
   
-  // Use retry mechanism to find and click the Post button - try multiple strategies
+  // Try clicking the compose/input area directly
   try {
-    const clicked = await service.findElementsWithRetry(
-      async () => {
-        return await service.executeScript(`
-      // Strategy 1: Look for button with "Post" text
-      const allButtons = Array.from(document.querySelectorAll('button, [role="button"], a[role="button"]'));
+    const clicked = await service.executeScript(`
+      // Look for the input/compose area where users start writing
+      // This is usually more reliable than finding a "Post" button
       
-      let postButton = allButtons.find(btn => {
-        const text = (btn.textContent || '').toLowerCase().trim();
-        const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
-        
-        // Look for "Post" button (not "Answer" or "Ask")
-        const isPost = (text === 'post' || 
-                       text.includes('post') && !text.includes('answer') && !text.includes('ask')) ||
-                      (ariaLabel.includes('post') && !ariaLabel.includes('answer') && !ariaLabel.includes('ask'));
-        
-        if (!isPost) return false;
-        if (btn.disabled) return false;
-        if (btn.offsetParent === null) return false; // Not visible
-        
-        return true;
-      });
+      // Strategy 1: Look for input with placeholder (most common)
+      let composeElement = document.querySelector('input[placeholder*="What do you want to ask" i], input[placeholder*="share" i], textarea[placeholder*="What do you want to ask" i]');
       
-      // Strategy 2: Look for input area with placeholder about asking/sharing
-      if (!postButton) {
-        const inputArea = document.querySelector('input[placeholder*="ask" i], input[placeholder*="share" i], input[placeholder*="post" i], div[contenteditable="true"][placeholder*="ask" i], div[contenteditable="true"][placeholder*="share" i], div[contenteditable="true"][placeholder*="post" i]');
-        if (inputArea && inputArea.offsetParent !== null) {
-          inputArea.click();
-          return { clicked: true, method: 'input_click' };
-        }
+      // Strategy 2: Look for contenteditable div
+      if (!composeElement) {
+        composeElement = document.querySelector('[contenteditable="true"][placeholder*="ask" i], [contenteditable="true"][placeholder*="share" i]');
       }
       
-      // Strategy 3: Look for button with data attributes
-      if (!postButton) {
-        postButton = allButtons.find(btn => {
-          const dataTestId = (btn.getAttribute('data-testid') || '').toLowerCase();
-          const className = (btn.className || '').toLowerCase();
-          const id = (btn.id || '').toLowerCase();
-          
-          return (dataTestId.includes('post') || 
-                 className.includes('post') || 
-                 id.includes('post')) &&
-                 !btn.disabled &&
-                 btn.offsetParent !== null;
-        });
-      }
-      
-      // Strategy 4: Look for the main compose/input area (usually at top of feed)
-      if (!postButton) {
-        const composeArea = document.querySelector('[class*="compose"], [class*="Compose"], [class*="write"], [class*="Write"], [class*="post"], [class*="Post"]');
-        if (composeArea) {
-          const clickable = composeArea.querySelector('button, [role="button"], input, [contenteditable="true"]');
-          if (clickable && clickable.offsetParent !== null) {
-            clickable.click();
-            return { clicked: true, method: 'compose_area' };
+      // Strategy 3: Look in common compose containers
+      if (!composeElement) {
+        const containers = document.querySelectorAll('[class*="compose"], [class*="Compose"], [class*="question"], [class*="Question"]');
+        for (const container of containers) {
+          const input = container.querySelector('input, textarea, [contenteditable="true"]');
+          if (input && input.offsetParent !== null) {
+            composeElement = input;
+            break;
           }
         }
       }
       
-      if (postButton) {
-        console.log('✅ Found Post button');
-        console.log('Text:', postButton.textContent);
-        console.log('AriaLabel:', postButton.getAttribute('aria-label'));
+      if (composeElement && composeElement.offsetParent !== null) {
+        console.log('✅ Found compose element:', composeElement.tagName, composeElement.placeholder || '');
         
-        postButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Scroll into view
+        composeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await new Promise(r => setTimeout(r, 500));
         
-        postButton.focus();
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Focus and click
+        composeElement.focus();
+        await new Promise(r => setTimeout(r, 300));
+        composeElement.click();
         
-        // Try multiple click methods
-        const mouseDownEvent = new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window, button: 0 });
-        postButton.dispatchEvent(mouseDownEvent);
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        const mouseUpEvent = new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window, button: 0 });
-        postButton.dispatchEvent(mouseUpEvent);
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true, view: window, button: 0 });
-        postButton.dispatchEvent(clickEvent);
-        
-        postButton.click();
-        
-        return { clicked: true, method: 'button_click' };
+        return true;
       }
       
-      console.warn('❌ Post button not found');
-      return { clicked: false };
+      console.warn('❌ Compose element not found');
+      return false;
     `);
-      },
-      {
-        timeout: 20000, // 20 seconds to find and click button
-        interval: 1500, // Check every 1.5 seconds
-        maxRetries: 15,
-        description: "'Post' button on Quora homepage"
-      }
-    );
     
-    if (clicked && clicked.clicked) {
-      console.log(`✅ Clicked 'Post' button via ${clicked.method}`);
-      postButtonClicked = true;
-      await service.humanDelay(3000, 5000); // Wait for modal to appear
+    if (clicked) {
+      console.log("✅ Clicked compose area");
+      postModalOpened = true;
+      await service.humanDelay(3000, 5000); // Wait for modal/editor to appear
     }
   } catch (e: any) {
-    console.warn("⚠️ Could not click Post button via retry mechanism:", e.message);
-    // Log all available buttons and inputs for debugging
-    const allButtons = pageInfo.buttons.filter(b => b.visible);
-    const allInputs = pageInfo.inputs.filter(i => i.visible);
-    console.log("📋 Available visible buttons:", JSON.stringify(
-      allButtons.map(b => ({
-        text: b.text,
-        ariaLabel: b.ariaLabel,
-        disabled: b.disabled
-      })),
-      null,
-      2
-    ));
-    console.log("📋 Available visible inputs:", JSON.stringify(
-      allInputs.map(i => ({
-        placeholder: i.placeholder,
-        type: i.type
-      })),
-      null,
-      2
-    ));
+    console.warn("⚠️ Could not click compose area:", e.message);
   }
   
-  if (!postButtonClicked) {
+  if (!postModalOpened) {
     // Try CSS selectors as fallback
-    const postButtonSelectors = [
-      'button[aria-label*="Post" i]',
-      'button[data-testid*="post" i]',
-      'input[placeholder*="ask" i], input[placeholder*="share" i]',
-      'div[contenteditable="true"][placeholder*="ask" i], div[contenteditable="true"][placeholder*="share" i]',
-      '[class*="compose"] button, [class*="Compose"] button',
+    const composeSelectors = [
+      'input[placeholder*="What do you want to ask" i]',
+      'input[placeholder*="share" i]',
+      'textarea[placeholder*="ask" i]',
+      '[contenteditable="true"][placeholder*="ask" i]',
+      '[class*="compose"] input, [class*="Compose"] input',
     ];
     
-    for (const selector of postButtonSelectors) {
+    for (const selector of composeSelectors) {
       try {
         const exists = await service.elementExists(selector);
         if (exists) {
-          console.log(`✅ Found element with selector: ${selector}`);
+          console.log(`✅ Found compose element with selector: ${selector}`);
           await service.clickElement(selector, { by: 'css' });
-          postButtonClicked = true;
+          postModalOpened = true;
           await service.humanDelay(3000, 5000);
           break;
         }
@@ -354,15 +279,15 @@ async function createQuoraPost(
     }
   }
   
-  if (!postButtonClicked) {
+  if (!postModalOpened) {
     // Take screenshot for debugging
     try {
       const screenshot = await service.takeScreenshot();
-      console.log("📸 Screenshot taken - Post button not found");
+      console.log("📸 Screenshot taken - Compose area not found");
     } catch (e) {
       // Ignore
     }
-    throw new Error("Could not find or click the 'Post' button on Quora homepage. Check debug logs above for available elements.");
+    throw new Error("Could not find or click the compose area on Quora homepage. The UI may have changed.");
   }
 
   // Step 3: Wait for modal to appear and switch to "Create Post" tab if needed
