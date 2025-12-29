@@ -197,29 +197,6 @@ async function createQuoraPost(
   // Step 2: Click "Post" button to open modal
   console.log("🚀 Step 1: Looking for 'Post' button on homepage...");
   
-  // First, get all elements with timeout/retry mechanism for debugging
-  console.log("🔍 Finding all page elements with timeout session...");
-  const pageInfo = await service.findAllElementsWithTimeout({
-    timeout: 15000, // 15 seconds to find all elements
-    interval: 1000, // Check every second
-    includeHidden: false,
-    elementTypes: ['button', 'input', 'link']
-  });
-  console.log("🔍 Quora homepage elements found:", JSON.stringify({
-    buttonCount: pageInfo.buttons.length,
-    visibleButtonCount: pageInfo.buttons.filter(b => b.visible).length,
-    inputCount: pageInfo.inputs.length,
-    visibleInputCount: pageInfo.inputs.filter(i => i.visible).length,
-    timestamp: new Date(pageInfo.timestamp).toISOString()
-  }, null, 2));
-  
-  // Log detailed element info for debugging
-  console.log("🔍 Detailed Quora homepage elements:", JSON.stringify({
-    buttons: pageInfo.buttons.filter(b => b.visible).slice(0, 20), // First 20 visible buttons
-    inputs: pageInfo.inputs.filter(i => i.visible).slice(0, 10), // First 10 visible inputs
-    currentUrl: await service.getCurrentUrl()
-  }, null, 2));
-  
   let postButtonClicked = false;
   
   // Use retry mechanism to find and click the Post button - try multiple strategies
