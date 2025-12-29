@@ -47,7 +47,27 @@ RUN apt-get update && apt-get install -y \
 RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
     && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
     && apt-get update \
-    && apt-get install -y google-chrome-stable \
+    && apt-get install -y google-chrome-stable unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install ChromeDriver (using latest stable)
+RUN apt-get update && apt-get install -y jq \
+    && CHROME_VERSION=$(google-chrome --version | awk '{print $3}') \
+    && echo "Chrome version: $CHROME_VERSION" \
+    && CHROME_MAJOR=$(echo $CHROME_VERSION | cut -d '.' -f 1) \
+    && echo "Chrome major version: $CHROME_MAJOR" \
+    # Get matching ChromeDriver version from Chrome for Testing API
+    && CHROMEDRIVER_VERSION=$(wget -qO- "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json" | \
+       jq -r ".channels.Stable.version") \
+    && echo "Using ChromeDriver version: $CHROMEDRIVER_VERSION" \
+    # Download and install ChromeDriver
+    && wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" -O chromedriver.zip \
+    && unzip -q chromedriver.zip \
+    && mv chromedriver-linux64/chromedriver /usr/local/bin/ \
+    && chmod +x /usr/local/bin/chromedriver \
+    && rm -rf chromedriver.zip chromedriver-linux64 \
+    && chromedriver --version \
+    && apt-get remove -y jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -62,9 +82,9 @@ RUN npm install --production
 # Copy application files
 COPY . .
 
-# Set environment variable for Chrome
+# Set environment variables for Chrome
 ENV CHROME_BIN=/usr/bin/google-chrome-stable
-ENV CHROMEDRIVER_PATH=/app/node_modules/chromedriver/lib/chromedriver/chromedriver
+ENV PATH="/usr/local/bin:${PATH}"
 
 # Expose port
 EXPOSE 3002
